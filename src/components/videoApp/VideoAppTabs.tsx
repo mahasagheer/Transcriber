@@ -5,6 +5,8 @@ import MediaLibrary from './MediaLibrary';
 import RecordingHeatmap from '../videoApp/RecordingHeatmap';
 import { useTheme } from '../../context/ThemeContext';
 import { Moon, Sun } from 'lucide-react';
+import AssemblyAITranscriber from '../training/AssemblyAITranscriber';
+
 
 const TABS = [
   { label: 'Record', value: 'record' },
@@ -63,7 +65,7 @@ const VideoAppTabs: React.FC = () => {
       </div>
       {/* Tab content */}
       <div className={`${ theme === "dark" ? "bg-[#1f2937]":"bg-white"} dark:bg-gray-800 rounded shadow-lg dark:shadow-none md:p-4 min-h-[400px]`}>
-        {activeTab === 'record' && <MediaRecorderWithSpeechRecognition />}
+        {activeTab === 'record' && <AssemblyAITranscriber/>}
         {activeTab === 'calendar' && <MonthlyCalendar />}
         {activeTab === 'library' && <MediaLibrary />}
         {activeTab === 'activity' && <RecordingHeatmap />}

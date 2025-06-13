@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  rewrites: async () => {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'https://api.assemblyai.com/lemur/v3/generate/task',
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

@@ -1,82 +1,56 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
-
-const ASSEMBLYAI_API_KEY = '239db32e77d44771ad26e0accdd31423';
+import React, { useCallback, useState } from 'react';
+import { createMicrophone } from '@/helpers/createMicrophone';
+import { createTranscriber } from '@/helpers/createTranscriber';
+import { RealtimeTranscriber } from 'assemblyai';
 
 const AssemblyAITranscriber: React.FC = () => {
-  const [transcript, setTranscript] = useState('');
+  const [transcribedText, setTranscribedText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [transcriber, setTranscriber] = useState<RealtimeTranscriber | undefined>(undefined);
+  const [mic, setMic] = useState<{
+    startRecording(onAudioCallback: any): Promise<void>;
+    stopRecording(): void;
+  } | undefined>(undefined);
 
-  // Start recording and streaming
-  const startTranscription = async () => {
-    setTranscript('');
+  const handlePrompt = useCallback(async (text: string) => {
+    console.log('Prompt:', text);
+    // You can trigger your LLM logic here, if needed
+  }, []);
+
+  const startTranscription = useCallback(async () => {
+    setTranscribedText('');
     setIsRecording(true);
 
-    // 1. Open AssemblyAI WebSocket
-    const ws = new WebSocket(
-      `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000`,
-    );
-    wsRef.current = ws;
+    // Initialize transcriber
+    const t = await createTranscriber(setTranscribedText, () => {}, handlePrompt);
 
-    ws.onopen = async () => {
-      // 2. Get user mic
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    if (!t) {
+      console.error('Failed to create transcriber');
+      return;
+    }
 
-      // 3. Set up MediaRecorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm',
-        audioBitsPerSecond: 16000 * 16, // 16kHz, 16bit
-      });
-      mediaRecorderRef.current = mediaRecorder;
+    await t.connect();
 
-      // 4. Send audio chunks to AssemblyAI
-      mediaRecorder.addEventListener('dataavailable', async (event) => {
-        if (event.data.size > 0 && ws.readyState === 1) {
-          // Convert webm to base64 (AssemblyAI expects base64-encoded PCM or WAV, but webm/opus is accepted for browser clients)
-          const arrayBuffer = await event.data.arrayBuffer();
-          ws.send(arrayBuffer);
-        }
-      });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const m = createMicrophone(stream);
 
-      mediaRecorder.start(250); // send every 250ms
-    };
+    await m.startRecording((audioData: any) => {
+      t.sendAudio(audioData);
+    });
 
-    // 5. Handle AssemblyAI responses
-    ws.onmessage = (message) => {
-      const res = JSON.parse(message.data);
-      if (res.text) {
-        setTranscript(res.text);
-      }
-    };
+    setTranscriber(t);
+    setMic(m);
+  }, [handlePrompt]);
 
-    ws.onerror = (err) => {
-      console.error('WebSocket error:', err);
-      stopTranscription();
-    };
-
-    ws.onclose = () => {
-      stopTranscription();
-    };
-  };
-
-  // Stop everything
-  const stopTranscription = () => {
+  const stopTranscription = useCallback(async () => {
     setIsRecording(false);
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
-    }
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-  };
-
-  // Authenticate WebSocket (AssemblyAI expects the API key in the header, but browsers can't set headers on WS, so use query param)
-  // You must pass the API key as a query param: wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=YOUR_API_KEY
-  // If your key is not working, you may need to generate a temporary token via your backend for security.
+    mic?.stopRecording();
+    await transcriber?.close(false);
+    setMic(undefined);
+    setTranscriber(undefined);
+  }, [mic, transcriber]);
 
   return (
     <div className="p-4 border rounded-lg bg-white shadow">
@@ -90,7 +64,7 @@ const AssemblyAITranscriber: React.FC = () => {
         </button>
       </div>
       <div className="mb-4 min-h-[2em] bg-gray-100 p-2 rounded">
-        <span className="font-mono">{transcript}</span>
+        <span className="font-mono">{transcribedText}</span>
       </div>
     </div>
   );

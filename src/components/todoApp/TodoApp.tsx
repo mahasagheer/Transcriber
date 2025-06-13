@@ -6,7 +6,6 @@ import TodoForm from "./TodoForm";
 import TodoList from "./TodoList";
 import MediaUploader from "../training/MediaUploader";
 import MediaPlayer from "../training/MediaPlayer";
-import AudioVideoRecorderWithTranscription from '../training/AudioVideoRecorderWithTranscription';
 import MediaRecorderWithSpeechRecognition from '../videoApp/MediaRecorderWithSpeechRecognition';
 import MonthlyCalendar from "../videoApp/MonthlyCalendar";
 
