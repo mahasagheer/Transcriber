@@ -12,6 +12,10 @@ interface TodoDB extends DBSchema {
     value: Media;
     indexes: { "by-date": Date };
   };
+  tags: {
+    key: string;
+    value: Tag;
+  };
 }
 
 // Define the Todo type
@@ -45,6 +49,16 @@ export interface Media {
   name: string;
   createdAt: Date;
   transcript?: string;
+  summary?: string;
+  sentiment?: {
+    overall: string;
+    confidence: number;
+    details?: {
+      positive: number;
+      negative: number;
+      neutral: number;
+    };
+  };
   tags?: Tag[];
 }
 
@@ -72,6 +86,13 @@ export const openTodoDB = async () => {
           autoIncrement: true,
         });
         mediaStore.createIndex("by-date", "createdAt");
+      }
+
+      // Create tags store in version 2
+      if (oldVersion < 2) {
+        db.createObjectStore("tags", {
+          keyPath: "name",
+        });
       }
     },
   });
@@ -155,13 +176,28 @@ export const addDummyData = async () => {
 // Save media to IndexedDB
 export const saveMedia = async (media: Omit<Media, "id">) => {
   const db = await openTodoDB();
-  return db.add("media", media);
+  return db.add("media", {
+    ...media,
+    createdAt: new Date(),
+    transcript: '',
+    summary: '',
+    sentiment: {
+      overall: 'neutral',
+      confidence: 0,
+      details: {
+        positive: 0,
+        negative: 0,
+        neutral: 1
+      }
+    }
+  });
 };
 
 // Get all media
 export const getAllMedia = async () => {
   const db = await openTodoDB();
-  return db.getAll("media");
+  const media = await db.getAll("media");
+  return media.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 };
 
 // Get media by id
@@ -184,9 +220,83 @@ export const clearMedia = async () => {
 
 // Update a media record
 export const updateMedia = async (media: Media) => {
-  const db = await openTodoDB();
-  return db.put('media', media);
+  try {
+    console.log('Starting updateMedia operation:', {
+      id: media.id,
+      name: media.name,
+      hasTranscript: !!media.transcript,
+      transcriptLength: media.transcript?.length,
+      hasSummary: !!media.summary,
+      summaryLength: media.summary?.length,
+      hasSentiment: !!media.sentiment
+    });
+
+    if (!media.id) {
+      throw new Error('Media ID is required for update');
+    }
+
+    const db = await openTodoDB();
+    
+    // Get the existing media record
+    const existingMedia = await db.get('media', media.id);
+    if (!existingMedia) {
+      throw new Error('Media record not found');
+    }
+
+    // Merge the existing media with the updates
+    const updatedMedia = {
+      ...existingMedia,
+      ...media,
+      // Ensure these fields are explicitly set
+      transcript: media.transcript || existingMedia.transcript || '',
+      summary: media.summary || existingMedia.summary || '',
+      sentiment: media.sentiment || existingMedia.sentiment || {
+        overall: 'neutral',
+        confidence: 0,
+        details: {
+          positive: 0,
+          negative: 0,
+          neutral: 1
+        }
+      }
+    };
+
+    console.log('Updating media in IndexedDB:', {
+      id: updatedMedia.id,
+      name: updatedMedia.name,
+      hasTranscript: !!updatedMedia.transcript,
+      transcriptLength: updatedMedia.transcript?.length,
+      hasSummary: !!updatedMedia.summary,
+      summaryLength: updatedMedia.summary?.length,
+      hasSentiment: !!updatedMedia.sentiment
+    });
+
+    // Update the record
+    await db.put('media', updatedMedia);
+
+    // Verify the update
+    const savedMedia = await db.get('media', media.id);
+    console.log('Verified updated media:', {
+      id: savedMedia?.id,
+      name: savedMedia?.name,
+      hasTranscript: !!savedMedia?.transcript,
+      transcriptLength: savedMedia?.transcript?.length,
+      hasSummary: !!savedMedia?.summary,
+      summaryLength: savedMedia?.summary?.length,
+      hasSentiment: !!savedMedia?.sentiment
+    });
+
+    if (!savedMedia) {
+      throw new Error('Failed to verify media update');
+    }
+
+    return savedMedia;
+  } catch (error) {
+    console.error('Error in updateMedia:', error);
+    throw error;
+  }
 };
+
 export const deleteMediaBatch = async (ids: number[]) => {
   const db = await openTodoDB();
   const tx = db.transaction('media', 'readwrite');

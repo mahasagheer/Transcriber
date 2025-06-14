@@ -84,15 +84,42 @@ export default function MediaUploader({ onMediaSaved }: MediaUploaderProps) {
         });
       }, 200);
 
-      // Convert file to blob
+      // Determine the correct MIME type
+      let mimeType = selectedFile.type;
+      if (!mimeType || mimeType === 'application/octet-stream') {
+        // Try to determine type from file extension
+        const extension = selectedFile.name.split('.').pop()?.toLowerCase();
+        if (extension) {
+          switch (extension) {
+            case 'mp3':
+              mimeType = 'audio/mpeg';
+              break;
+            case 'wav':
+              mimeType = 'audio/wav';
+              break;
+            case 'mp4':
+              mimeType = 'video/mp4';
+              break;
+            case 'webm':
+              mimeType = selectedFile.name.includes('audio') ? 'audio/webm' : 'video/webm';
+              break;
+            default:
+              mimeType = selectedFile.name.includes('audio') ? 'audio/wav' : 'video/mp4';
+          }
+        }
+      }
+
+      console.log('Saving file with MIME type:', mimeType);
+
+      // Convert file to blob with the correct MIME type
       const blob = await selectedFile
         .arrayBuffer()
-        .then((buffer) => new Blob([buffer], { type: selectedFile.type }));
+        .then((buffer) => new Blob([buffer], { type: mimeType }));
 
-      // Save to IndexedDB
+      // Save to IndexedDB with the correct type
       const mediaId = await saveMedia({
         blob,
-        type: "video",
+        type: mimeType,
         name: selectedFile.name,
         createdAt: new Date(),
       });
@@ -100,7 +127,7 @@ export default function MediaUploader({ onMediaSaved }: MediaUploaderProps) {
       clearInterval(progressInterval);
       setUploadProgress(100);
 
-      console.log(`Saved media with ID: ${mediaId}`);
+      console.log(`Saved media with ID: ${mediaId}, type: ${mimeType}`);
       onMediaSaved();
 
       // Clear selection after successful save

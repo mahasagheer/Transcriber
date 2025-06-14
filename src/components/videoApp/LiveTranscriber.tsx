@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useRef, useState } from "react"
 
-const ASSEMBLYAI_API_KEY = process.env.NEXT_PUBLIC_ASSEMBLYAI_API_KEY
+const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY
 
 export default function LiveTranscriber() {
   const [transcript, setTranscript] = useState("")
